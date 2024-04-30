@@ -27,11 +27,10 @@ class Dao extends Model\Document\Dao
     /**
      * Get the data for the object by the given id, or by the id which is set in the object
      *
-     * @param int $id
      *
      * @throws Model\Exception\NotFoundException
      */
-    public function getById($id = null)
+    public function getById(int $id = null): void
     {
         if ($id != null) {
             $this->model->setId($id);
@@ -42,14 +41,15 @@ class Dao extends Model\Document\Dao
             LEFT JOIN tree_locks ON documents.id = tree_locks.id AND tree_locks.type = 'document'
                 WHERE documents.id = ?", [$this->model->getId()]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
+            $data['published'] = (bool)$data['published'];
             $this->assignVariablesToModel($data);
         } else {
             throw new Model\Exception\NotFoundException('Hardlink with the ID ' . $this->model->getId() . " doesn't exists");
         }
     }
 
-    public function create()
+    public function create(): void
     {
         parent::create();
 

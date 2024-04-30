@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -16,19 +17,15 @@
 namespace Pimcore\Model\Asset\MetaData;
 
 use Pimcore\Logger;
+use Pimcore\Tool\Console;
 use Symfony\Component\Process\Process;
 
 trait EmbeddedMetaDataTrait
 {
     /**
-     * @param bool $force
-     * @param bool $useExifTool
-     *
-     * @return array
-     *
      * @throws \Exception
      */
-    public function getEmbeddedMetaData(bool $force, bool $useExifTool = true)
+    public function getEmbeddedMetaData(bool $force, bool $useExifTool = true): array
     {
         if ($force) {
             $this->handleEmbeddedMetaData($useExifTool);
@@ -40,12 +37,9 @@ trait EmbeddedMetaDataTrait
     /**
      * @internal
      *
-     * @param bool $useExifTool
-     * @param string|null $filePath
-     *
      * @throws \Exception
      */
-    public function handleEmbeddedMetaData(bool $useExifTool = true, ?string $filePath = null)
+    public function handleEmbeddedMetaData(bool $useExifTool = true, ?string $filePath = null): void
     {
         if (!$this->getCustomSetting('embeddedMetaDataExtracted') || $this->getDataChanged()) {
             $this->readEmbeddedMetaData($useExifTool, $filePath);
@@ -53,16 +47,12 @@ trait EmbeddedMetaDataTrait
     }
 
     /**
-     * @param bool $useExifTool
-     * @param string|null $filePath
-     *
-     * @return array
-     *
      * @throws \Exception
      */
     protected function readEmbeddedMetaData(bool $useExifTool = true, ?string $filePath = null): array
     {
-        $exiftool = \Pimcore\Tool\Console::getExecutable('exiftool');
+        $exiftool = Console::getExecutable('exiftool');
+        $embeddedMetaData = [];
 
         if (!$filePath) {
             $filePath = $this->getLocalFile();
@@ -72,11 +62,14 @@ trait EmbeddedMetaDataTrait
             $process = new Process([$exiftool, '-j', $filePath]);
             $process->run();
             $output = $process->getOutput();
-            $embeddedMetaData = $this->flattenArray((array) json_decode($output)[0]);
+            $outputArray = json_decode($output, true);
+            if ($outputArray) {
+                $embeddedMetaData = $this->flattenArray($outputArray[0]);
 
-            foreach (['Directory', 'FileName', 'SourceFile', 'ExifToolVersion'] as $removeKey) {
-                if (isset($embeddedMetaData[$removeKey])) {
-                    unset($embeddedMetaData[$removeKey]);
+                foreach (['Directory', 'FileName', 'SourceFile', 'ExifToolVersion'] as $removeKey) {
+                    if (isset($embeddedMetaData[$removeKey])) {
+                        unset($embeddedMetaData[$removeKey]);
+                    }
                 }
             }
         } else {
@@ -99,12 +92,7 @@ trait EmbeddedMetaDataTrait
         return $embeddedMetaData;
     }
 
-    /**
-     * @param array $tempArray
-     *
-     * @return array
-     */
-    private function flattenArray(array $tempArray)
+    private function flattenArray(array $tempArray): array
     {
         array_walk($tempArray, function (&$value) {
             if (is_array($value)) {
@@ -115,12 +103,7 @@ trait EmbeddedMetaDataTrait
         return $tempArray;
     }
 
-    /**
-     * @param string|null $filePath
-     *
-     * @return array
-     */
-    public function getEXIFData(?string $filePath = null)
+    public function getEXIFData(?string $filePath = null): array
     {
         if (!$filePath) {
             $filePath = $this->getLocalFile();
@@ -143,13 +126,9 @@ trait EmbeddedMetaDataTrait
     }
 
     /**
-     * @param string|null $filePath
-     *
-     * @return array
-     *
      * @throws \Exception
      */
-    public function getXMPData(?string $filePath = null)
+    public function getXMPData(?string $filePath = null): array
     {
         if (!$filePath) {
             $filePath = $this->getLocalFile();
@@ -190,7 +169,7 @@ trait EmbeddedMetaDataTrait
                 $tagLength = strlen($tag);
                 $offset = 0;
                 while (($position = strpos($buffer, $tag, $offset)) === false && ($chunk = fread($file_pointer,
-                        $chunkSize)) !== false && !empty($chunk)) {
+                    $chunkSize)) !== false && !empty($chunk)) {
                     $offset = strlen($buffer) - $tagLength; // subtract the tag size just in case it's split between chunks.
                     $buffer .= $chunk;
                 }
@@ -240,10 +219,7 @@ trait EmbeddedMetaDataTrait
         return $resultData;
     }
 
-    /**
-     * @return array
-     */
-    public function getIPTCData(?string $filePath = null)
+    public function getIPTCData(?string $filePath = null): array
     {
         if (!$filePath) {
             $filePath = $this->getLocalFile();
@@ -325,7 +301,7 @@ trait EmbeddedMetaDataTrait
                     '2#153' => 'AudioDuration',
                     '2#154' => 'AudioOutcue',
                     '2#184' => 'JobID',
-                    '2#185' => 'MasterDocumentID',
+                    '2#185' => 'MainDocumentID',
                     '2#186' => 'ShortDocumentID',
                     '2#187' => 'UniqueDocumentID',
                     '2#188' => 'OwnerID',
@@ -377,7 +353,7 @@ trait EmbeddedMetaDataTrait
                     $iptcRaw = iptcparse($info['APP13']);
                     if (is_array($iptcRaw)) {
                         foreach ($iptcRaw as $key => $value) {
-                            if (is_array($value) && count($value) === 1) {
+                            if (count($value) === 1) {
                                 $value = $value[0];
                             }
 

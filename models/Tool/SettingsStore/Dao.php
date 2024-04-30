@@ -28,23 +28,15 @@ class Dao extends Model\Dao\AbstractDao
 {
     const TABLE_NAME = 'settings_store';
 
-    /**
-     * @param string $id
-     * @param int|string|bool|float $data
-     * @param string $type
-     * @param string|null $scope
-     *
-     * @return bool
-     */
-    public function set(string $id, $data, string $type = 'string', ?string $scope = null): bool
+    public function set(string $id, float|bool|int|string $data, string $type = SettingsStore::TYPE_STRING, ?string $scope = null): bool
     {
         try {
-            Helper::insertOrUpdate($this->db, self::TABLE_NAME, [
+            Helper::upsert($this->db, self::TABLE_NAME, [
                 'id' => $id,
                 'data' => $data,
                 'scope' => (string) $scope,
                 'type' => $type,
-            ]);
+            ], $this->getPrimaryKey(self::TABLE_NAME));
 
             return true;
         } catch (\Exception $e) {
@@ -52,13 +44,7 @@ class Dao extends Model\Dao\AbstractDao
         }
     }
 
-    /**
-     * @param string $id
-     * @param string|null $scope
-     *
-     * @return mixed
-     */
-    public function delete(string $id, ?string $scope = null)
+    public function delete(string $id, ?string $scope = null): int|string
     {
         return $this->db->delete(self::TABLE_NAME, [
             'id' => $id,
@@ -67,35 +53,25 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     * @param string $id
-     * @param string|null $scope
-     *
-     * @return bool
+     * @throws Model\Exception\NotFoundException
      */
-    public function getById(string $id, ?string $scope = null): bool
+    public function getById(string $id, ?string $scope = null): void
     {
         $item = $this->db->fetchAssociative('SELECT * FROM ' . self::TABLE_NAME . ' WHERE id = :id AND scope = :scope', [
             'id' => $id,
             'scope' => (string) $scope,
         ]);
 
-        if (is_array($item) && array_key_exists('id', $item)) {
-            $this->assignVariablesToModel($item);
-
-            $data = $item['data'] ?? null;
-            $this->model->setData($data);
-
-            return true;
+        if (!$item) {
+            throw new Model\Exception\NotFoundException('settings store with id ' . $id . ' and scope ' . $scope . ' not found');
         }
 
-        return false;
+        $this->assignVariablesToModel($item);
+
+        $data = $item['data'] ?? null;
+        $this->model->setData($data);
     }
 
-    /**
-     * @param string $scope
-     *
-     * @return array
-     */
     public function getIdsByScope(string $scope): array
     {
         return $this->db->fetchFirstColumn('SELECT id FROM ' . self::TABLE_NAME . ' WHERE scope = ?', [$scope]);

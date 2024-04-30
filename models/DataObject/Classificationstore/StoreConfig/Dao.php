@@ -29,11 +29,10 @@ class Dao extends Model\Dao\AbstractDao
     /**
      * Get the data for the object from database for the given id, or from the ID which is set in the object
      *
-     * @param int $id
      *
      * @throws Model\Exception\NotFoundException
      */
-    public function getById($id = null)
+    public function getById(int $id = null): void
     {
         if ($id != null) {
             $this->model->setId($id);
@@ -41,7 +40,7 @@ class Dao extends Model\Dao\AbstractDao
 
         $data = $this->db->fetchAssociative('SELECT * FROM ' . self::TABLE_NAME_STORES . ' WHERE id = ?', [$this->model->getId()]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $this->assignVariablesToModel($data);
         } else {
             throw new Model\Exception\NotFoundException('StoreConfig with id: ' . $this->model->getId() . ' does not exist');
@@ -49,11 +48,10 @@ class Dao extends Model\Dao\AbstractDao
     }
 
     /**
-     * @param string|null $name
      *
      * @throws Model\Exception\NotFoundException
      */
-    public function getByName($name = null)
+    public function getByName(string $name = null): void
     {
         if ($name != null) {
             $this->model->setName($name);
@@ -63,7 +61,7 @@ class Dao extends Model\Dao\AbstractDao
 
         $data = $this->db->fetchAssociative('SELECT * FROM ' . self::TABLE_NAME_STORES . ' WHERE name = ?', [$name]);
 
-        if (!empty($data['id'])) {
+        if ($data) {
             $this->assignVariablesToModel($data);
         } else {
             throw new Model\Exception\NotFoundException(sprintf('Classification store config with name "%s" does not exist.', $name));
@@ -73,7 +71,7 @@ class Dao extends Model\Dao\AbstractDao
     /**
      * @throws \Exception
      */
-    public function save()
+    public function save(): void
     {
         if (!$this->model->getId()) {
             $this->create();
@@ -85,7 +83,7 @@ class Dao extends Model\Dao\AbstractDao
     /**
      * Deletes object from database
      */
-    public function delete()
+    public function delete(): void
     {
         $this->db->delete(self::TABLE_NAME_STORES, ['id' => $this->model->getId()]);
     }
@@ -93,7 +91,7 @@ class Dao extends Model\Dao\AbstractDao
     /**
      * @throws \Exception
      */
-    public function update()
+    public function update(): void
     {
         $data = [];
         $type = $this->model->getObjectVars();
@@ -114,7 +112,7 @@ class Dao extends Model\Dao\AbstractDao
         $this->db->update(self::TABLE_NAME_STORES, $data, ['id' => $this->model->getId()]);
     }
 
-    public function create()
+    public function create(): void
     {
         $this->db->insert(self::TABLE_NAME_STORES, []);
         $this->model->setId((int) $this->db->lastInsertId());

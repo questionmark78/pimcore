@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -39,6 +40,8 @@ class ListingClassBuilder implements ListingClassBuilderInterface
         $cd .= "\n\n";
         $cd .= 'namespace Pimcore\\Model\\DataObject\\'.ucfirst($classDefinition->getName()).';';
         $cd .= "\n\n";
+        $cd .= 'use Pimcore\\Model;';
+        $cd .= "\n";
         $cd .= 'use Pimcore\\Model\\DataObject;';
         $cd .= "\n\n";
         $cd .= "/**\n";
@@ -58,10 +61,8 @@ class ListingClassBuilder implements ListingClassBuilderInterface
 
         $cd .= "\n\n";
 
-        if (\is_array($classDefinition->getFieldDefinitions())) {
-            foreach ($classDefinition->getFieldDefinitions() as $def) {
-                $cd .= $this->fieldDefinitionBuilder->buildListingClassFieldDefinition($classDefinition, $def);
-            }
+        foreach ($classDefinition->getFieldDefinitions() as $def) {
+            $cd .= $this->fieldDefinitionBuilder->buildListingClassFieldDefinition($classDefinition, $def);
         }
 
         $cd .= "\n\n";

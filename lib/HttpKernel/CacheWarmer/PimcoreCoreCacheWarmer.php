@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -25,18 +26,12 @@ use Symfony\Component\HttpKernel\CacheWarmer\CacheWarmerInterface;
  */
 class PimcoreCoreCacheWarmer implements CacheWarmerInterface
 {
-    /**
-     * {@inheritdoc}
-     */
     public function isOptional(): bool
     {
         return true;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function warmUp($cacheDir): array
+    public function warmUp(string $cacheDir): array
     {
         $classes = [];
 
@@ -78,7 +73,9 @@ class PimcoreCoreCacheWarmer implements CacheWarmerInterface
                 $className = preg_replace('@\.php$@', '', $className);
                 $className = str_replace(DIRECTORY_SEPARATOR, '\\', $className);
 
-                if (class_exists($className)) {
+                // include classes, interfaces and traits
+                // exclude invalid files like helper-functions
+                if (!preg_match('/[_.-]/', $className)) {
                     $classes[] = $className;
                 }
             }
@@ -99,19 +96,19 @@ class PimcoreCoreCacheWarmer implements CacheWarmerInterface
         }
 
         $list = new DataObject\Objectbrick\Definition\Listing();
-        $list = $list->load();
+        $list = $list->loadNames();
 
-        foreach ($list as $brickDefinition) {
-            $className = 'Pimcore\\Model\\DataObject\\Objectbrick\\Data' . ucfirst($brickDefinition->getKey());
+        foreach ($list as $brickName) {
+            $className = 'Pimcore\\Model\\DataObject\\Objectbrick\\Data\\' . ucfirst($brickName);
 
             $classes[] = $className;
         }
 
         $list = new DataObject\Fieldcollection\Definition\Listing();
-        $list = $list->load();
+        $list = $list->loadNames();
 
-        foreach ($list as $fcDefinition) {
-            $className = 'Pimcore\\Model\\DataObject\\Fieldcollection\\Data' . ucfirst($fcDefinition->getKey());
+        foreach ($list as $fcName) {
+            $className = 'Pimcore\\Model\\DataObject\\Fieldcollection\\Data\\' . ucfirst($fcName);
 
             $classes[] = $className;
         }

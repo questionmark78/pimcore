@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -18,6 +19,7 @@ namespace Pimcore\Model\DataObject\Data;
 use DeepCopy\DeepCopy;
 use DeepCopy\Filter\SetNullFilter;
 use DeepCopy\Matcher\PropertyNameMatcher;
+use DeepCopy\Reflection\ReflectionHelper;
 use Pimcore\Cache\Core\CacheMarshallerInterface;
 use Pimcore\Cache\RuntimeCache;
 use Pimcore\Model\AbstractModel;
@@ -30,41 +32,29 @@ use Pimcore\Model\Element\ElementDumpStateInterface;
 use Pimcore\Model\Element\ElementInterface;
 use Pimcore\Model\Element\Service;
 use Pimcore\Model\Version\SetDumpStateFilter;
+use ReflectionProperty;
 
 class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, CacheMarshallerInterface
 {
     use OwnerAwareFieldTrait;
 
-    /**
-     * @var string
-     */
-    protected $name;
+    protected string $name;
 
-    /**
-     * @var string
-     */
-    protected $type;
+    protected string $type;
 
-    /**
-     * @var mixed
-     */
-    protected $data;
+    protected mixed $data = null;
 
     /**
      * @internal
      *
-     * @var bool
      */
-    protected $needsRenewReferences = false;
+    protected bool $needsRenewReferences = false;
 
     /**
      * BlockElement constructor.
      *
-     * @param string $name
-     * @param string $type
-     * @param mixed $data
      */
-    public function __construct($name, $type, $data)
+    public function __construct(string $name, string $type, mixed $data)
     {
         $this->name = $name;
         $this->type = $type;
@@ -72,18 +62,12 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
         $this->markMeDirty();
     }
 
-    /**
-     * @return string
-     */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
 
-    /**
-     * @param string $name
-     */
-    public function setName($name)
+    public function setName(string $name): void
     {
         if ($name != $this->name) {
             $this->name = $name;
@@ -91,18 +75,12 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
         }
     }
 
-    /**
-     * @return string
-     */
-    public function getType()
+    public function getType(): string
     {
         return $this->type;
     }
 
-    /**
-     * @param string $type
-     */
-    public function setType($type)
+    public function setType(string $type): void
     {
         if ($type != $this->type) {
             $this->type = $type;
@@ -110,10 +88,7 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
         }
     }
 
-    /**
-     * @return mixed
-     */
-    public function getData()
+    public function getData(): mixed
     {
         if ($this->needsRenewReferences) {
             $this->needsRenewReferences = false;
@@ -123,16 +98,13 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
         return $this->data;
     }
 
-    /**
-     * @param mixed $data
-     */
-    public function setData($data)
+    public function setData(mixed $data): void
     {
         $this->data = $data;
         $this->markMeDirty();
     }
 
-    protected function renewReferences()
+    protected function renewReferences(): void
     {
         $copier = new DeepCopy();
         $copier->skipUncloneable(true);
@@ -163,8 +135,28 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
         );
 
         $copier->addFilter(new \DeepCopy\Filter\KeepFilter(), new class() implements \DeepCopy\Matcher\Matcher {
-            public function matches($object, $property)
+            /**
+             * @param object $object
+             * @param string $property
+             *
+             */
+            public function matches($object, $property): bool
             {
+                $reflectionProperty = null;
+                if ($object instanceof Video) {
+                    $reflectionProperty = ReflectionHelper::getProperty($object, 'data');
+                }
+                if ($object instanceof Hotspotimage) {
+                    $reflectionProperty = ReflectionHelper::getProperty($object, 'image');
+                }
+                if ($object instanceof ExternalImage) {
+                    $reflectionProperty = ReflectionHelper::getProperty($object, 'url');
+                }
+
+                if ($reflectionProperty instanceof ReflectionProperty) {
+                    return !($reflectionProperty->getValue($object) instanceof ElementDescriptor);
+                }
+
                 return $object instanceof AbstractElement;
             }
         });
@@ -172,15 +164,12 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
         $this->data = $copier->copy($this->data);
     }
 
-    /**
-     * @return string
-     */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->name . '; ' . $this->type;
     }
 
-    public function __wakeup()
+    public function __wakeup(): void
     {
         $this->needsRenewReferences = true;
 
@@ -194,7 +183,6 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
     /**
      * @internal
      *
-     * @return bool
      */
     public function getNeedsRenewReferences(): bool
     {
@@ -204,25 +192,18 @@ class BlockElement extends AbstractModel implements OwnerAwareFieldInterface, Ca
     /**
      * @internal
      *
-     * @param bool $needsRenewReferences
      */
-    public function setNeedsRenewReferences(bool $needsRenewReferences)
+    public function setNeedsRenewReferences(bool $needsRenewReferences): void
     {
-        $this->needsRenewReferences = (bool) $needsRenewReferences;
+        $this->needsRenewReferences = $needsRenewReferences;
     }
 
-    /**
-     * @param string $language
-     */
-    public function setLanguage(string $language)
+    public function setLanguage(string $language): void
     {
         $this->_language = $language;
     }
 
-    /**
-     * @return mixed
-     */
-    public function marshalForCache()
+    public function marshalForCache(): mixed
     {
         $this->needsRenewReferences = true;
 

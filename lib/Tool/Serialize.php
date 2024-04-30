@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -17,29 +18,16 @@ namespace Pimcore\Tool;
 
 final class Serialize
 {
-    /**
-     * @var array
-     */
-    protected static $loopFilterProcessedObjects = [];
+    protected static array $loopFilterProcessedObjects = [];
 
-    /**
-     * @param mixed $data
-     *
-     * @return string
-     */
-    public static function serialize($data)
+    public static function serialize(mixed $data): string
     {
         return serialize($data);
     }
 
-    /**
-     * @param string $data
-     *
-     * @return mixed
-     */
-    public static function unserialize($data)
+    public static function unserialize(?string $data = null): mixed
     {
-        if (!empty($data) && is_string($data)) {
+        if ($data) {
             $data = unserialize($data);
         }
 
@@ -51,9 +39,8 @@ final class Serialize
      *
      * Shortcut to access the admin serializer
      *
-     * @return \Symfony\Component\Serializer\Serializer
      */
-    public static function getAdminSerializer()
+    public static function getAdminSerializer(): \Symfony\Component\Serializer\Serializer
     {
         return \Pimcore::getContainer()->get('pimcore_admin.serializer');
     }
@@ -64,23 +51,16 @@ final class Serialize
      * this is a special json encoder that avoids recursion errors
      * especially for pimcore models that contain massive self referencing objects
      *
-     * @param mixed $data
      *
-     * @return mixed
      */
-    public static function removeReferenceLoops($data): mixed
+    public static function removeReferenceLoops(mixed $data): mixed
     {
         self::$loopFilterProcessedObjects = []; // reset
 
         return self::loopFilterCycles($data);
     }
 
-    /**
-     * @param mixed $element
-     *
-     * @return mixed
-     */
-    protected static function loopFilterCycles($element)
+    protected static function loopFilterCycles(mixed $element): mixed
     {
         if (is_array($element)) {
             foreach ($element as &$value) {
@@ -102,7 +82,9 @@ final class Serialize
             $propCollection = get_object_vars($clone);
 
             foreach ($propCollection as $name => $propValue) {
-                $clone->$name = self::loopFilterCycles($propValue);
+                if (!str_starts_with($name, "\0")) {
+                    $clone->$name = self::loopFilterCycles($propValue);
+                }
             }
 
             array_splice(self::$loopFilterProcessedObjects, array_search($element, self::$loopFilterProcessedObjects, true), 1);

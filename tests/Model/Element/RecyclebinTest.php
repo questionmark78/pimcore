@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -18,19 +19,20 @@ namespace Pimcore\Tests\Model\Element;
 use Pimcore\Model\DataObject;
 use Pimcore\Model\Element\Recyclebin\Item;
 use Pimcore\Model\User;
-use Pimcore\Tests\Test\ModelTestCase;
-use Pimcore\Tests\Util\TestHelper;
+use Pimcore\Tests\Support\Test\ModelTestCase;
+use Pimcore\Tests\Support\Util\TestHelper;
 use Pimcore\Tool\Storage;
 
 /**
  * Class RecyclebinTest
  *
  * @package Pimcore\Tests\Model\Element
+ *
  * @group model.element.recyclebin
  */
 class RecyclebinTest extends ModelTestCase
 {
-    protected $user;
+    protected User $user;
 
     public function setUp(): void
     {
@@ -40,11 +42,11 @@ class RecyclebinTest extends ModelTestCase
         $this->createDummyUser();
     }
 
-    protected function createDummyUser()
+    protected function createDummyUser(): void
     {
         if (!$user = User::getByName('test-user')) {
             $user = new User();
-            $user->setAdmin(1);
+            $user->setAdmin(true);
             $user
                 ->setName('test-user')
                 ->save();
@@ -57,7 +59,7 @@ class RecyclebinTest extends ModelTestCase
      * Verifies that an object can be moved to recycle bin and restored
      *
      */
-    public function testSimpleObjectRecycleAndRestore()
+    public function testSimpleObjectRecycleAndRestore(): void
     {
         $object = TestHelper::createEmptyObject();
         $objectId = $object->getId();
@@ -71,10 +73,12 @@ class RecyclebinTest extends ModelTestCase
 
         //recycle asserts
         $recycledItems = new Item\Listing();
-        $this->assertTrue($storage->fileExists($recycledItems->current()->getStoreageFile()));
+        $this->assertTrue($storage->fileExists($recycledItems->current()->getStorageFile()));
 
-        $recycledStorage = unserialize($storage->read($recycledItems->current()->getStoreageFile()));
+        $recycledStorage = unserialize($storage->read($recycledItems->current()->getStorageFile()));
         $this->assertEquals($objectId, $recycledStorage->getId(), 'Recycled Object not found.');
+
+        $this->assertEquals($recycledItems->current()->getStorageFile(), $recycledItems->current()->getStoreageFile());    // deprecated method name
 
         //restore asserts
         $recycledItems->current()->restore();
@@ -87,7 +91,7 @@ class RecyclebinTest extends ModelTestCase
      * Verifies that object with children can be moved to recyclebin and restored
      *
      */
-    public function testRecursiveObjectRecycleAndRestore()
+    public function testRecursiveObjectRecycleAndRestore(): void
     {
         // create parent object
         $parent = TestHelper::createEmptyObject();
@@ -106,16 +110,16 @@ class RecyclebinTest extends ModelTestCase
         $parent->delete();
 
         $recycledItems = new Item\Listing();
-        $recycledItems->setCondition('path = ?', $parentPath);
+        $recycledItems->setCondition('`path` = ?', $parentPath);
 
         $this->assertEquals(2, $recycledItems->current()->getAmount(), 'Expected 2 recycled item');
 
         $storage = Storage::get('recycle_bin');
         //recycle bin item storage file
-        $recycledContent = unserialize($storage->read($recycledItems->current()->getStoreageFile()));
+        $recycledContent = unserialize($storage->read($recycledItems->current()->getStorageFile()));
 
         $this->assertEquals($parentId, $recycledContent->getId(), 'Expected recycled parent object ID');
-        $this->assertCount(1, $recycledContent->getChildren(DataObject::$types, true), 'Expected recycled child object');
+        $this->assertCount(1, $recycledContent->getChildren(DataObject::$types, true)->getData(), 'Expected recycled child object');
 
         //restore deleted items (parent + child)
         $recycledItems->current()->restore();
@@ -131,7 +135,7 @@ class RecyclebinTest extends ModelTestCase
      * Verifies that an object data is restored properly
      *
      */
-    public function testObjectDataRecycleAndRestore()
+    public function testObjectDataRecycleAndRestore(): void
     {
         // create target object
         $inputText = TestHelper::generateRandomString();
@@ -155,7 +159,7 @@ class RecyclebinTest extends ModelTestCase
 
         //restore deleted items (parent + child)
         $recycledItems = new Item\Listing();
-        $recycledItems->setCondition('path = ?', $sourceObjectPath);
+        $recycledItems->setCondition('`path` = ?', $sourceObjectPath);
         $recycledItems->current()->restore();
 
         //load relation and check if relation loads correctly

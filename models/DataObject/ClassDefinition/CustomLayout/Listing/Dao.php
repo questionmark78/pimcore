@@ -22,19 +22,13 @@ use Pimcore\Model;
  *
  * @property \Pimcore\Model\DataObject\ClassDefinition\CustomLayout\Listing $model
  */
-class Dao extends Model\Listing\Dao\AbstractDao
+class Dao extends Model\DataObject\ClassDefinition\CustomLayout\Dao
 {
-    protected function loadIdList()
-    {
-        return $this->db->fetchFirstColumn('SELECT id FROM custom_layouts');
-    }
-
     /**
      * Loads a list of custom layouts for the specified parameters, returns an array of DataObject\ClassDefinition\CustomLayout elements
      *
-     * @return array
      */
-    public function load()
+    public function load(): array
     {
         $layouts = [];
 
@@ -47,7 +41,7 @@ class Dao extends Model\Listing\Dao\AbstractDao
         if ($this->model->getFilter()) {
             $layouts = array_filter($layouts, $this->model->getFilter());
         }
-        if ($this->model->getOrder()) {
+        if (is_callable($this->model->getOrder())) {
             usort($layouts, $this->model->getOrder());
         }
         $this->model->setLayoutDefinitions($layouts);
@@ -55,11 +49,24 @@ class Dao extends Model\Listing\Dao\AbstractDao
         return $layouts;
     }
 
-    /**
-     * @return int
-     */
-    public function getTotalCount()
+    public function getTotalCount(): int
     {
-        return count($this->load());
+        try {
+            $layouts = [];
+            foreach ($this->loadIdList() as $id) {
+                $customLayout = Model\DataObject\ClassDefinition\CustomLayout::getById($id);
+                if ($customLayout) {
+                    $layouts[] = $customLayout;
+                }
+            }
+
+            if ($this->model->getFilter()) {
+                $layouts = array_filter($layouts, $this->model->getFilter());
+            }
+
+            return count($layouts);
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 }

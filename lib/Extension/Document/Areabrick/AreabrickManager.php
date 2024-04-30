@@ -17,7 +17,6 @@ declare(strict_types = 1);
 
 namespace Pimcore\Extension\Document\Areabrick;
 
-use Pimcore\Extension;
 use Pimcore\Extension\Document\Areabrick\Exception\BrickNotFoundException;
 use Pimcore\Extension\Document\Areabrick\Exception\ConfigurationException;
 use Psr\Container\ContainerInterface;
@@ -27,40 +26,21 @@ use Psr\Container\ContainerInterface;
  */
 class AreabrickManager implements AreabrickManagerInterface
 {
-    /**
-     * @var Extension\Config
-     */
-    protected $config;
-
-    /**
-     * @var ContainerInterface
-     */
-    protected $container;
+    protected ContainerInterface $container;
 
     /**
      * @var AreabrickInterface[]
      */
-    protected $bricks = [];
+    protected array $bricks = [];
 
-    /**
-     * @var array
-     */
-    protected $brickServiceIds = [];
+    protected array $brickServiceIds = [];
 
-    /**
-     * @param Extension\Config $config
-     * @param ContainerInterface $container
-     */
-    public function __construct(Extension\Config $config, ContainerInterface $container)
+    public function __construct(ContainerInterface $container)
     {
-        $this->config = $config;
         $this->container = $container;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function register(string $id, AreabrickInterface $brick)
+    public function register(string $id, AreabrickInterface $brick): void
     {
         if (array_key_exists($id, $this->bricks)) {
             throw new ConfigurationException(sprintf(
@@ -85,10 +65,7 @@ class AreabrickManager implements AreabrickManagerInterface
         $this->bricks[$id] = $brick;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function registerService(string $id, string $serviceId)
+    public function registerService(string $id, string $serviceId): void
     {
         if (array_key_exists($id, $this->bricks)) {
             throw new ConfigurationException(sprintf(
@@ -111,9 +88,6 @@ class AreabrickManager implements AreabrickManagerInterface
         $this->brickServiceIds[$id] = $serviceId;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getBrick(string $id): AreabrickInterface
     {
         $brick = null;
@@ -130,9 +104,6 @@ class AreabrickManager implements AreabrickManagerInterface
         return $brick;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getBricks(): array
     {
         if (count($this->brickServiceIds) > 0) {
@@ -142,9 +113,6 @@ class AreabrickManager implements AreabrickManagerInterface
         return $this->bricks;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getBrickIds(): array
     {
         $ids = array_merge(
@@ -158,11 +126,9 @@ class AreabrickManager implements AreabrickManagerInterface
     /**
      * Loads brick from container
      *
-     * @param string $id
      *
-     * @return AreabrickInterface|null
      */
-    protected function loadServiceBrick(string $id)
+    protected function loadServiceBrick(string $id): ?AreabrickInterface
     {
         if (!isset($this->brickServiceIds[$id])) {
             return null;
@@ -199,85 +165,10 @@ class AreabrickManager implements AreabrickManagerInterface
     /**
      * Loads all brick instances registered as service definitions
      */
-    protected function loadServiceBricks()
+    protected function loadServiceBricks(): void
     {
         foreach ($this->brickServiceIds as $id => $serviceId) {
             $this->loadServiceBrick($id);
         }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function enable(string $id)
-    {
-        $this->setState($id, true);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function disable(string $id)
-    {
-        $this->setState($id, false);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function setState(string $id, bool $state)
-    {
-        // load the brick to make sure it exists
-        $brick = $this->getBrick($id);
-        $config = $this->getBrickConfig();
-
-        if ($state) {
-            if (isset($config[$brick->getId()])) {
-                unset($config[$brick->getId()]);
-            }
-        } else {
-            $config[$brick->getId()] = false;
-        }
-
-        $this->setBrickConfig($config);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function isEnabled(string $id): bool
-    {
-        $config = $this->getBrickConfig();
-
-        $enabled = true;
-        if (isset($config[$id]) && $config[$id] === false) {
-            $enabled = false;
-        }
-
-        return $enabled;
-    }
-
-    /**
-     * @return array
-     */
-    private function getBrickConfig()
-    {
-        $config = $this->config->loadConfig();
-        if (isset($config->areabrick)) {
-            return $config->areabrick->toArray();
-        }
-
-        return [];
-    }
-
-    /**
-     * @param array $config
-     */
-    private function setBrickConfig(array $config)
-    {
-        $cfg = $this->config->loadConfig();
-        $cfg->areabrick = $config;
-
-        $this->config->saveConfig($cfg);
     }
 }

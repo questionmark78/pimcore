@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -36,28 +37,32 @@ class DatabaseVersionStorageAdapter implements VersionStorageAdapterInterface
             $contents = stream_get_contents($binaryDataStream);
         }
 
-        $this->databaseConnection->insert(self::versionsTableName, ['id' => $version->getId(),
-                                    'cid' => $version->getCid(),
-                                    'ctype' => $version->getCtype(),
-                                    'metaData' => $metaData,
-                                    'binaryData' => $contents ?? null, ]);
+        $query = 'INSERT INTO ' . self::versionsTableName . '(`id`, `cid`, `ctype`, `metaData`, `binaryData`) VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE `metaData` = ?, `binaryData` = ?';
+
+        $this->databaseConnection->executeQuery(
+            $query,
+            [
+                $version->getId(),
+                $version->getCid(),
+                $version->getCtype(),
+                $metaData,
+                $contents ?? null,
+                $metaData,
+                $contents ?? null,
+            ]
+        );
     }
 
     /**
-     * @param int $id
-     * @param int $cId
-     * @param string $cType
-     * @param bool $binaryData
      *
-     * @return mixed
      *
-     * @throws \Doctrine\DBAL\Driver\Exception
      * @throws \Doctrine\DBAL\Exception
      */
     protected function loadData(int $id,
-                                int $cId,
-                                string $cType,
-                                bool $binaryData = false): mixed
+        int $cId,
+        string $cType,
+        bool $binaryData = false): mixed
     {
         $dataColumn = $binaryData ? 'binaryData' : 'metaData';
 
@@ -74,11 +79,6 @@ class DatabaseVersionStorageAdapter implements VersionStorageAdapterInterface
         return $this->loadData($version->getId(), $version->getCid(), $version->getCtype());
     }
 
-    /**
-     * @param string $data
-     *
-     * @return mixed
-     */
     protected function getStream(string $data): mixed
     {
         if ($data) {
@@ -120,7 +120,7 @@ class DatabaseVersionStorageAdapter implements VersionStorageAdapterInterface
     }
 
     public function getStorageType(int $metaDataSize = null,
-                                   int $binaryDataSize = null): string
+        int $binaryDataSize = null): string
     {
         return 'db';
     }

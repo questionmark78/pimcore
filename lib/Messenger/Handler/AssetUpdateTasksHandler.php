@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -15,7 +16,7 @@
 
 namespace Pimcore\Messenger\Handler;
 
-use Pimcore\Logger;
+use Pimcore\Helper\LongRunningHelper;
 use Pimcore\Messenger\AssetUpdateTasksMessage;
 use Pimcore\Model\Asset;
 use Pimcore\Model\Version;
@@ -26,11 +27,11 @@ use Psr\Log\LoggerInterface;
  */
 class AssetUpdateTasksHandler
 {
-    public function __construct(protected LoggerInterface $logger)
+    public function __construct(protected LoggerInterface $logger, protected LongRunningHelper $longRunningHelper)
     {
     }
 
-    public function __invoke(AssetUpdateTasksMessage $message)
+    public function __invoke(AssetUpdateTasksMessage $message): void
     {
         $asset = Asset::getById($message->getId());
         if (!$asset) {
@@ -47,20 +48,33 @@ class AssetUpdateTasksHandler
         } elseif ($asset instanceof Asset\Video) {
             $this->processVideo($asset);
         }
+
+        $this->longRunningHelper->deleteTemporaryFiles();
     }
 
-    private function saveAsset(Asset $asset)
+    private function saveAsset(Asset $asset): void
     {
         Version::disable();
+        $asset->markFieldDirty('modificationDate'); // prevent modificationDate from being changed
         $asset->save();
         Version::enable();
     }
 
-    private function processDocument(Asset\Document $asset)
+    private function processDocument(Asset\Document $asset): void
     {
-        if (!$asset->getCustomSetting('document_page_count')) {
-            $asset->processPageCount();
-            $this->saveAsset($asset);
+        if ($asset->getMimeType() === 'application/pdf' && $asset->checkIfPdfContainsJS()) {
+            $asset->save(['versionNote' => 'PDF scan result']);
+        }
+
+        $pageCount = $asset->getCustomSetting('document_page_count');
+        if (!$pageCount || $pageCount === 'failed') {
+            if ($asset->processPageCount()) {
+                $this->saveAsset($asset);
+            }
+
+            if ($asset->getCustomSetting('document_page_count') === 'failed') {
+                throw new \RuntimeException(sprintf('Failed processing page count for document asset %s.', $asset->getId()));
+            }
         }
 
         $asset->getImageThumbnail(Asset\Image\Thumbnail\Config::getPreviewConfig())->generate(false);
@@ -68,29 +82,33 @@ class AssetUpdateTasksHandler
 
     private function processVideo(Asset\Video $asset): void
     {
-        try {
-            $asset->setCustomSetting('duration', $asset->getDurationFromBackend());
-        } catch (\Exception $e) {
-            Logger::err('Unable to get duration of video: ' . $asset->getId());
+        if ($duration = $asset->getDurationFromBackend()) {
+            $asset->setCustomSetting('duration', $duration);
+        } else {
+            $asset->removeCustomSetting('duration');
         }
 
-        try {
-            $dimensions = $asset->getDimensionsFromBackend();
-            if ($dimensions) {
-                $asset->setCustomSetting('videoWidth', $dimensions['width']);
-                $asset->setCustomSetting('videoHeight', $dimensions['height']);
-            } else {
-                $asset->removeCustomSetting('videoWidth');
-                $asset->removeCustomSetting('videoHeight');
-            }
-        } catch (\Exception $e) {
-            Logger::err('Unable to get dimensions of video: ' . $asset->getId());
+        if ($dimensions = $asset->getDimensionsFromBackend()) {
+            $asset->setCustomSetting('videoWidth', $dimensions['width']);
+            $asset->setCustomSetting('videoHeight', $dimensions['height']);
+        } else {
+            $asset->removeCustomSetting('videoWidth');
+            $asset->removeCustomSetting('videoHeight');
         }
 
-        $asset->handleEmbeddedMetaData(true);
+        $sphericalMetaData = $asset->getSphericalMetaDataFromBackend();
+        if (!empty($sphericalMetaData)) {
+            $asset->setCustomSetting('SphericalMetaData', $sphericalMetaData);
+        } else {
+            $asset->removeCustomSetting('SphericalMetaData');
+        }
+
+        $asset->handleEmbeddedMetaData();
         $this->saveAsset($asset);
 
-        $asset->getImageThumbnail(Asset\Image\Thumbnail\Config::getPreviewConfig())->generate(false);
+        if ($asset->getCustomSetting('videoWidth') && $asset->getCustomSetting('videoHeight')) {
+            $asset->getImageThumbnail(Asset\Image\Thumbnail\Config::getPreviewConfig())->generate(false);
+        }
     }
 
     private function processImage(Asset\Image $image): void
@@ -114,18 +132,8 @@ class AssetUpdateTasksHandler
         // calculate the dimensions on every request an also will create a version, ...
         $image->setCustomSetting('imageDimensionsCalculated', $imageDimensionsCalculated);
 
-        $customSettings = $image->getCustomSettings();
-
-        if (!isset($customSettings['disableImageFeatureAutoDetection'])) {
-            $image->detectFaces();
-        }
-
-        if (!isset($customSettings['disableFocalPointDetection'])) {
-            $image->detectFocalPoint();
-        }
-
         try {
-            $image->handleEmbeddedMetaData(true);
+            $image->handleEmbeddedMetaData();
         } catch (\Exception $e) {
             $this->logger->warning($e->getMessage());
         }

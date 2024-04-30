@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * Pimcore
@@ -15,8 +16,8 @@
 
 namespace Pimcore\Model\DataObject\ClassDefinition;
 
-use Pimcore\Db;
 use Pimcore\Model\DataObject\ClassDefinition;
+use Pimcore\Model\DataObject\ClassDefinitionInterface;
 
 class ClassDefinitionManager
 {
@@ -24,10 +25,14 @@ class ClassDefinitionManager
 
     public const CREATED = 'created';
 
+    public const SKIPPED = 'skipped';
+
     public const DELETED = 'deleted';
 
     /**
      * Delete all classes from db
+     *
+     * @return list<array{string, string, string}>
      */
     public function cleanUpDeletedClassDefinitions(): array
     {
@@ -57,30 +62,64 @@ class ClassDefinitionManager
 
     /**
      * Updates all classes from PIMCORE_CLASS_DEFINITION_DIRECTORY
+     *
+     * @param bool $force whether to always update no matter if the model definition changed or not
+     *
+     * @return list<array{string, string, string}>
      */
-    public function createOrUpdateClassDefinitions(): array
+    public function createOrUpdateClassDefinitions(bool $force = false): array
     {
-        $objectClassesFolder = PIMCORE_CLASS_DEFINITION_DIRECTORY;
-        $files = glob($objectClassesFolder.'/*.php');
+        $objectClassesFolders = array_unique([PIMCORE_CLASS_DEFINITION_DIRECTORY, PIMCORE_CUSTOM_CONFIGURATION_CLASS_DEFINITION_DIRECTORY]);
 
         $changes = [];
 
-        foreach ($files as $file) {
-            $class = include $file;
+        foreach ($objectClassesFolders as $objectClassesFolder) {
+            $files = glob($objectClassesFolder . '/*.php');
+            foreach ($files as $file) {
+                $class = include $file;
 
-            if ($class instanceof ClassDefinition) {
-                $existingClass = ClassDefinition::getByName($class->getName());
+                if ($class instanceof ClassDefinitionInterface) {
+                    $existingClass = ClassDefinition::getByName($class->getName());
 
-                if ($existingClass instanceof ClassDefinition) {
-                    $changes[] = [$class->getName(), $class->getId(), self::SAVED];
-                    $existingClass->save(false);
-                } else {
-                    $changes[] = [$class->getName(), $class->getId(), self::CREATED];
-                    $class->save(false);
+                    if ($existingClass instanceof ClassDefinitionInterface) {
+                        $classSaved = $this->saveClass($existingClass, false, $force);
+                        $changes[] = [$existingClass->getName(), $existingClass->getId(), $classSaved ? self::SAVED : self::SKIPPED];
+                    } else {
+                        $classSaved = $this->saveClass($class, false, $force);
+                        $changes[] = [$class->getName(), $class->getId(), $classSaved ? self::CREATED : self::SKIPPED];
+                    }
                 }
             }
         }
 
         return $changes;
+    }
+
+    /**
+     * @return bool whether the class was saved or not
+     */
+    public function saveClass(ClassDefinitionInterface $class, bool $saveDefinitionFile, bool $force = false): bool
+    {
+        $shouldSave = $force;
+
+        if (!$force) {
+            $db = \Pimcore\Db::get();
+
+            $definitionModificationDate = null;
+
+            if ($classId = $class->getId()) {
+                $definitionModificationDate = $db->fetchOne('SELECT definitionModificationDate FROM classes WHERE id = ?;', [$classId]);
+            }
+
+            if (!$definitionModificationDate || $definitionModificationDate !== $class->getModificationDate()) {
+                $shouldSave = true;
+            }
+        }
+
+        if ($shouldSave) {
+            $class->save($saveDefinitionFile);
+        }
+
+        return $shouldSave;
     }
 }

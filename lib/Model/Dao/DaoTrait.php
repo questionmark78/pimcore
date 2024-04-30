@@ -15,6 +15,8 @@
 
 namespace Pimcore\Model\Dao;
 
+use Pimcore\Model\AbstractModel;
+
 /**
  * @internal
  */
@@ -25,12 +27,7 @@ trait DaoTrait
      */
     protected $model;
 
-    /**
-     * @param \Pimcore\Model\AbstractModel $model
-     *
-     * @return $this
-     */
-    public function setModel($model)
+    public function setModel(AbstractModel $model): static
     {
         $this->model = $model;
 
@@ -38,10 +35,10 @@ trait DaoTrait
     }
 
     /**
-     * @param array $data
+     * @param array<string, mixed> $data
      */
-    protected function assignVariablesToModel($data)
+    protected function assignVariablesToModel(array $data): void
     {
-        $this->model->setValues($data);
+        $this->model->setValues($data, true);
     }
 }
